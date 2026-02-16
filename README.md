@@ -1,6 +1,6 @@
 # Hinnavaatlus Forum Redesign
 
-A modern redesign of the Hinnavaatlus forum, built with React and Tailwind CSS. This project was generated from a [Figma design](https://www.figma.com/design/PvNNhEvLTopYrMLBo6CtEY/Redesign-Forum-Website).
+A modern redesign of the Hinnavaatlus forum, built with React and Tailwind CSS.
 
 ## Features
 
