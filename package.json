@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "homepage": "https://renepruu.github.io/hinnavaatlus_revamped/",
+  "homepage": "https://croccu.github.io/hinnavaatlus_revamped/",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
