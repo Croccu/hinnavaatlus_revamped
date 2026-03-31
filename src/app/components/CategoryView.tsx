@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router";
-import { ArrowLeft, Plus, Pin, MessageSquare, Eye, Clock } from "lucide-react";
+import { ArrowLeft, Plus, Pin, MessageSquare, Eye, Clock, ThumbsUp, Flag } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./ui/dialog";
-import { getCurrentUser, getPosts, addPost, type Post } from "../storage";
+import { getCurrentUser, getPosts, addPost, toggleLike, toggleFlag, type Post } from "../storage";
 import { useLayoutContext } from "./Layout";
 
 type Thread = {
@@ -24,6 +24,9 @@ type Thread = {
   isPinned: boolean;
   isHot: boolean;
   content?: string;
+  likes: string[];
+  flaggedBy: string[];
+  createdAt?: string;
 };
 
 const initialThreads: Thread[] = [
@@ -38,6 +41,8 @@ const initialThreads: Thread[] = [
     lastActivityMinutes: 5,
     isPinned: true,
     isHot: true,
+    likes: [],
+    flaggedBy: [],
   },
   {
     id: 2,
@@ -50,6 +55,8 @@ const initialThreads: Thread[] = [
     lastActivityMinutes: 120,
     isPinned: false,
     isHot: false,
+    likes: [],
+    flaggedBy: [],
   },
   {
     id: 3,
@@ -62,6 +69,8 @@ const initialThreads: Thread[] = [
     lastActivityMinutes: 30,
     isPinned: false,
     isHot: true,
+    likes: [],
+    flaggedBy: [],
   },
   {
     id: 4,
@@ -74,6 +83,8 @@ const initialThreads: Thread[] = [
     lastActivityMinutes: 60,
     isPinned: true,
     isHot: true,
+    likes: [],
+    flaggedBy: [],
   },
   {
     id: 5,
@@ -86,6 +97,8 @@ const initialThreads: Thread[] = [
     lastActivityMinutes: 240,
     isPinned: false,
     isHot: false,
+    likes: [],
+    flaggedBy: [],
   },
   {
     id: 6,
@@ -98,6 +111,8 @@ const initialThreads: Thread[] = [
     lastActivityMinutes: 360,
     isPinned: false,
     isHot: false,
+    likes: [],
+    flaggedBy: [],
   },
   {
     id: 7,
@@ -110,6 +125,8 @@ const initialThreads: Thread[] = [
     lastActivityMinutes: 480,
     isPinned: false,
     isHot: false,
+    likes: [],
+    flaggedBy: [],
   },
   {
     id: 8,
@@ -122,6 +139,8 @@ const initialThreads: Thread[] = [
     lastActivityMinutes: 720,
     isPinned: false,
     isHot: true,
+    likes: [],
+    flaggedBy: [],
   },
 ];
 
@@ -146,6 +165,9 @@ function postToThread(post: Post): Thread {
     isPinned: false,
     isHot: false,
     content: post.content,
+    likes: post.likes ?? [],
+    flaggedBy: post.flaggedBy ?? [],
+    createdAt: post.createdAt,
   };
 }
 
@@ -182,7 +204,7 @@ const categoryInfo: Record<string, { name: string; description: string; icon: st
   },
 };
 
-type FilterTab = "all" | "myPosts" | "popular";
+type FilterTab = "all" | "myPosts" | "popular" | "flagged";
 type SortOption = "lastUpdated" | "newest" | "oldest" | "mostReplies";
 
 const ITEMS_PER_PAGE = 4;
@@ -232,6 +254,8 @@ export function CategoryView() {
       result = result.filter((t) => currentUser && t.author === currentUser);
     } else if (filterTab === "popular") {
       result = result.filter((t) => t.isHot);
+    } else if (filterTab === "flagged") {
+      result = result.filter((t) => currentUser && t.flaggedBy.includes(currentUser));
     }
 
     // Sort
@@ -240,13 +264,19 @@ export function CategoryView() {
         result.sort((a, b) => a.lastActivityMinutes - b.lastActivityMinutes);
         break;
       case "newest":
-        result.sort((a, b) => a.lastActivityMinutes - b.lastActivityMinutes);
+        result.sort((a, b) => {
+          if (a.createdAt && b.createdAt) return b.createdAt.localeCompare(a.createdAt);
+          return a.lastActivityMinutes - b.lastActivityMinutes;
+        });
         break;
       case "oldest":
-        result.sort((a, b) => b.lastActivityMinutes - a.lastActivityMinutes);
+        result.sort((a, b) => {
+          if (a.createdAt && b.createdAt) return a.createdAt.localeCompare(b.createdAt);
+          return b.lastActivityMinutes - a.lastActivityMinutes;
+        });
         break;
       case "mostReplies":
-        result.sort((a, b) => b.replies - a.replies);
+        result.sort((a, b) => b.likes.length - a.likes.length || b.replies - a.replies);
         break;
     }
 
@@ -290,6 +320,33 @@ export function CategoryView() {
     setNewTopicContent("");
     setIsNewTopicOpen(false);
     setCurrentPage(1);
+  };
+
+  const handleLike = (e: React.MouseEvent, threadId: number) => {
+    e.preventDefault();
+    if (!currentUser) { navigate("/auth"); return; }
+    const updated = toggleLike(threadId, currentUser);
+    // Re-merge localStorage posts with initial threads
+    const userThreads = updated.map(postToThread);
+    const initialIds = new Set(initialThreads.map((t) => t.id));
+    const dedupedUserThreads = userThreads.filter((t) => !initialIds.has(t.id));
+    setThreads([...dedupedUserThreads, ...initialThreads.map((t) => {
+      const match = updated.find((p) => p.id === t.id);
+      return match ? { ...t, likes: match.likes, flaggedBy: match.flaggedBy } : t;
+    })]);
+  };
+
+  const handleFlag = (e: React.MouseEvent, threadId: number) => {
+    e.preventDefault();
+    if (!currentUser) { navigate("/auth"); return; }
+    const updated = toggleFlag(threadId, currentUser);
+    const userThreads = updated.map(postToThread);
+    const initialIds = new Set(initialThreads.map((t) => t.id));
+    const dedupedUserThreads = userThreads.filter((t) => !initialIds.has(t.id));
+    setThreads([...dedupedUserThreads, ...initialThreads.map((t) => {
+      const match = updated.find((p) => p.id === t.id);
+      return match ? { ...t, likes: match.likes, flaggedBy: match.flaggedBy } : t;
+    })]);
   };
 
   return (
@@ -363,6 +420,16 @@ export function CategoryView() {
             >
               Populaarsed
             </button>
+            <button
+              onClick={() => handleFilterChange("flagged")}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                filterTab === "flagged"
+                  ? "bg-red-50 dark:bg-red-900 text-red-600 dark:text-red-400"
+                  : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
+              }`}
+            >
+              Märgitud
+            </button>
           </div>
           <select
             value={sortBy}
@@ -431,6 +498,28 @@ export function CategoryView() {
                         <Eye className="w-4 h-4" />
                         <span>{thread.views.toLocaleString()} vaatamist</span>
                       </div>
+                      <button
+                        onClick={(e) => handleLike(e, thread.id)}
+                        className={`flex items-center gap-1 transition-colors ${
+                          currentUser && thread.likes.includes(currentUser)
+                            ? "text-blue-600 dark:text-blue-400"
+                            : "hover:text-blue-600 dark:hover:text-blue-400"
+                        }`}
+                      >
+                        <ThumbsUp className="w-4 h-4" />
+                        <span>{thread.likes.length}</span>
+                      </button>
+                      <button
+                        onClick={(e) => handleFlag(e, thread.id)}
+                        className={`flex items-center gap-1 transition-colors ${
+                          currentUser && thread.flaggedBy.includes(currentUser)
+                            ? "text-red-600 dark:text-red-400"
+                            : "hover:text-red-600 dark:hover:text-red-400"
+                        }`}
+                      >
+                        <Flag className="w-4 h-4" />
+                        <span>{thread.flaggedBy.length}</span>
+                      </button>
                     </div>
                   </div>
                 </div>

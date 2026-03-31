@@ -1,8 +1,24 @@
-import { useParams, Link } from "react-router";
+import { useParams, Link, useNavigate } from "react-router";
 import { ArrowLeft, ThumbsUp, Share2, Flag, MessageSquare, Award } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { getCurrentUser, getPosts, savePosts, type Post } from "../storage";
 
-const posts = [
+type ThreadPost = {
+  id: number;
+  author: string;
+  authorAvatar: string;
+  role: string;
+  postCount: number;
+  joinDate: string;
+  content: string;
+  timestamp: string;
+  likes: string[];
+  flaggedBy: string[];
+  isOriginalPoster: boolean;
+  isBestAnswer?: boolean;
+};
+
+const defaultPosts: ThreadPost[] = [
   {
     id: 1,
     author: "TechFan",
@@ -19,7 +35,8 @@ Olen vaadanud järgmisi mudeleid:
 
 Kas kellelgi on kogemusi nende mudelitega? Mida soovitaksite?`,
     timestamp: "2 tundi tagasi",
-    likes: 12,
+    likes: [],
+    flaggedBy: [],
     isOriginalPoster: true,
   },
   {
@@ -33,7 +50,8 @@ Kas kellelgi on kogemusi nende mudelitega? Mida soovitaksite?`,
     
 Dell Latitude on ka hea, aga veidi kallim kui teised. HP ProBook ei ole nii vastupidav kui teised kaks.`,
     timestamp: "1 tund tagasi",
-    likes: 8,
+    likes: [],
+    flaggedBy: [],
     isOriginalPoster: false,
     isBestAnswer: true,
   },
@@ -46,7 +64,8 @@ Dell Latitude on ka hea, aga veidi kallim kui teised. HP ProBook ei ole nii vast
     joinDate: "Nov 2025",
     content: `Ma ostin hiljuti Lenovo ThinkPad E15 ja olen väga rahul! Hind oli umbes 850€ ja jõudlus on suurepärane. Sain ka SSD upgrade tehtud.`,
     timestamp: "45 minutit tagasi",
-    likes: 5,
+    likes: [],
+    flaggedBy: [],
     isOriginalPoster: false,
   },
   {
@@ -58,14 +77,62 @@ Dell Latitude on ka hea, aga veidi kallim kui teised. HP ProBook ei ole nii vast
     joinDate: "Jan 2024",
     content: `Tänan soovituste eest! Arvan, et lähen Lenovo ThinkPad E15-ga. Kust saaks parima hinna?`,
     timestamp: "20 minutit tagasi",
-    likes: 2,
+    likes: [],
+    flaggedBy: [],
     isOriginalPoster: true,
   },
 ];
 
+const THREAD_POSTS_KEY = "threadPosts";
+
+function getThreadPosts(threadId: string): ThreadPost[] {
+  const raw = localStorage.getItem(`${THREAD_POSTS_KEY}_${threadId}`);
+  if (raw) {
+    return (JSON.parse(raw) as ThreadPost[]).map((p) => ({
+      ...p,
+      likes: p.likes ?? [],
+      flaggedBy: p.flaggedBy ?? [],
+    }));
+  }
+  return defaultPosts;
+}
+
+function saveThreadPosts(threadId: string, posts: ThreadPost[]) {
+  localStorage.setItem(`${THREAD_POSTS_KEY}_${threadId}`, JSON.stringify(posts));
+}
+
 export function ThreadView() {
   const { threadId } = useParams<{ threadId: string }>();
+  const navigate = useNavigate();
   const [replyText, setReplyText] = useState("");
+  const [posts, setPosts] = useState<ThreadPost[]>([]);
+  const currentUser = getCurrentUser();
+
+  useEffect(() => {
+    setPosts(getThreadPosts(threadId || "1"));
+  }, [threadId]);
+
+  const handleToggleLike = (postId: number) => {
+    if (!currentUser) { navigate("/auth"); return; }
+    const updated = posts.map((p) => {
+      if (p.id !== postId) return p;
+      const liked = p.likes.includes(currentUser);
+      return { ...p, likes: liked ? p.likes.filter((u) => u !== currentUser) : [...p.likes, currentUser] };
+    });
+    setPosts(updated);
+    saveThreadPosts(threadId || "1", updated);
+  };
+
+  const handleToggleFlag = (postId: number) => {
+    if (!currentUser) { navigate("/auth"); return; }
+    const updated = posts.map((p) => {
+      if (p.id !== postId) return p;
+      const flagged = p.flaggedBy.includes(currentUser);
+      return { ...p, flaggedBy: flagged ? p.flaggedBy.filter((u) => u !== currentUser) : [...p.flaggedBy, currentUser] };
+    });
+    setPosts(updated);
+    saveThreadPosts(threadId || "1", updated);
+  };
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -179,17 +246,31 @@ export function ThreadView() {
 
                   {/* Post Actions */}
                   <div className="flex items-center gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <button className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                    <button
+                      onClick={() => handleToggleLike(post.id)}
+                      className={`flex items-center gap-2 transition-colors ${
+                        currentUser && post.likes.includes(currentUser)
+                          ? "text-blue-600 dark:text-blue-400"
+                          : "text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                      }`}
+                    >
                       <ThumbsUp className="w-4 h-4" />
-                      <span className="text-sm">{post.likes}</span>
+                      <span className="text-sm">{post.likes.length}</span>
                     </button>
                     <button className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
                       <Share2 className="w-4 h-4" />
                       <span className="text-sm">Jaga</span>
                     </button>
-                    <button className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors">
+                    <button
+                      onClick={() => handleToggleFlag(post.id)}
+                      className={`flex items-center gap-2 transition-colors ${
+                        currentUser && post.flaggedBy.includes(currentUser)
+                          ? "text-red-600 dark:text-red-400"
+                          : "text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                      }`}
+                    >
                       <Flag className="w-4 h-4" />
-                      <span className="text-sm">Teata</span>
+                      <span className="text-sm">{post.flaggedBy.length || "Teata"}</span>
                     </button>
                   </div>
                 </div>

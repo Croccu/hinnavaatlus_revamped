@@ -46,11 +46,20 @@ export type Post = {
   content: string;
   author: string;
   createdAt: string;
+  likes: string[];
+  flaggedBy: string[];
 };
+
+/** Normalise posts that were saved before likes/flaggedBy existed */
+const normalise = (p: Post): Post => ({
+  ...p,
+  likes: p.likes ?? [],
+  flaggedBy: p.flaggedBy ?? [],
+});
 
 export const getPosts = (): Post[] => {
   const raw = localStorage.getItem(POSTS_KEY);
-  return raw ? JSON.parse(raw) : [];
+  return raw ? (JSON.parse(raw) as Post[]).map(normalise) : [];
 };
 
 export const savePosts = (posts: Post[]) => {
@@ -65,8 +74,36 @@ export const addPost = (title: string, content: string, author: string): Post =>
     content,
     author,
     createdAt: new Date().toISOString(),
+    likes: [],
+    flaggedBy: [],
   };
   posts.unshift(newPost);
   savePosts(posts);
   return newPost;
+};
+
+export const toggleLike = (postId: number, username: string): Post[] => {
+  const posts = getPosts();
+  const post = posts.find((p) => p.id === postId);
+  if (!post) return posts;
+  if (post.likes.includes(username)) {
+    post.likes = post.likes.filter((u) => u !== username);
+  } else {
+    post.likes.push(username);
+  }
+  savePosts(posts);
+  return posts;
+};
+
+export const toggleFlag = (postId: number, username: string): Post[] => {
+  const posts = getPosts();
+  const post = posts.find((p) => p.id === postId);
+  if (!post) return posts;
+  if (post.flaggedBy.includes(username)) {
+    post.flaggedBy = post.flaggedBy.filter((u) => u !== username);
+  } else {
+    post.flaggedBy.push(username);
+  }
+  savePosts(posts);
+  return posts;
 };
