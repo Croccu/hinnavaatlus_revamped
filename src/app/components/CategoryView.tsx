@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useParams, Link } from "react-router";
+import { useState, useMemo, useEffect } from "react";
+import { useParams, Link, useNavigate } from "react-router";
 import { ArrowLeft, Plus, Pin, MessageSquare, Eye, Clock } from "lucide-react";
 import {
   Dialog,
@@ -9,6 +9,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./ui/dialog";
+import { getCurrentUser, getPosts, addPost, type Post } from "../storage";
+import { useLayoutContext } from "./Layout";
 
 type Thread = {
   id: number;
@@ -18,9 +20,10 @@ type Thread = {
   replies: number;
   views: number;
   lastActivity: string;
-  lastActivityMinutes: number; // For sorting
+  lastActivityMinutes: number;
   isPinned: boolean;
   isHot: boolean;
+  content?: string;
 };
 
 const initialThreads: Thread[] = [
@@ -122,6 +125,30 @@ const initialThreads: Thread[] = [
   },
 ];
 
+function postToThread(post: Post): Thread {
+  const now = Date.now();
+  const created = new Date(post.createdAt).getTime();
+  const diffMin = Math.max(0, Math.round((now - created) / 60000));
+  let lastActivity = "Just nüüd";
+  if (diffMin >= 60 * 24) lastActivity = `${Math.floor(diffMin / (60 * 24))} päeva tagasi`;
+  else if (diffMin >= 60) lastActivity = `${Math.floor(diffMin / 60)} tundi tagasi`;
+  else if (diffMin > 0) lastActivity = `${diffMin} minutit tagasi`;
+
+  return {
+    id: post.id,
+    title: post.title,
+    author: post.author,
+    authorAvatar: post.author.slice(0, 2).toUpperCase(),
+    replies: 0,
+    views: 1,
+    lastActivity,
+    lastActivityMinutes: diffMin,
+    isPinned: false,
+    isHot: false,
+    content: post.content,
+  };
+}
+
 const categoryInfo: Record<string, { name: string; description: string; icon: string }> = {
   arvutid: {
     name: "Arvutid ja IT",
@@ -155,7 +182,7 @@ const categoryInfo: Record<string, { name: string; description: string; icon: st
   },
 };
 
-type FilterTab = "all" | "pinned" | "popular";
+type FilterTab = "all" | "myPosts" | "popular";
 type SortOption = "lastUpdated" | "newest" | "oldest" | "mostReplies";
 
 const ITEMS_PER_PAGE = 4;
@@ -163,6 +190,8 @@ const ITEMS_PER_PAGE = 4;
 export function CategoryView() {
   const { categoryId } = useParams<{ categoryId: string }>();
   const category = categoryInfo[categoryId || ""] || categoryInfo.arvutid;
+  const navigate = useNavigate();
+  const { searchQuery } = useLayoutContext();
 
   const [threads, setThreads] = useState<Thread[]>(initialThreads);
   const [filterTab, setFilterTab] = useState<FilterTab>("all");
@@ -172,13 +201,35 @@ export function CategoryView() {
   const [newTopicTitle, setNewTopicTitle] = useState("");
   const [newTopicContent, setNewTopicContent] = useState("");
 
+  // Load user-created posts from localStorage
+  useEffect(() => {
+    const userPosts = getPosts();
+    const userThreads = userPosts.map(postToThread);
+    // Merge: user posts first, then initial mock threads (avoid ID collisions)
+    const initialIds = new Set(initialThreads.map((t) => t.id));
+    const dedupedUserThreads = userThreads.filter((t) => !initialIds.has(t.id));
+    setThreads([...dedupedUserThreads, ...initialThreads]);
+  }, []);
+
+  const currentUser = getCurrentUser();
+
   // Filter and sort threads
   const filteredAndSortedThreads = useMemo(() => {
     let result = [...threads];
 
-    // Filter
-    if (filterTab === "pinned") {
-      result = result.filter((t) => t.isPinned);
+    // Search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (t) =>
+          t.title.toLowerCase().includes(q) ||
+          (t.content && t.content.toLowerCase().includes(q))
+      );
+    }
+
+    // Tab filter
+    if (filterTab === "myPosts") {
+      result = result.filter((t) => currentUser && t.author === currentUser);
     } else if (filterTab === "popular") {
       result = result.filter((t) => t.isHot);
     }
@@ -200,7 +251,7 @@ export function CategoryView() {
     }
 
     return result;
-  }, [threads, filterTab, sortBy]);
+  }, [threads, filterTab, sortBy, searchQuery, currentUser]);
 
   // Pagination
   const totalPages = Math.ceil(filteredAndSortedThreads.length / ITEMS_PER_PAGE);
@@ -220,21 +271,19 @@ export function CategoryView() {
     setCurrentPage(1);
   };
 
-  const handleCreateTopic = () => {
-    if (!newTopicTitle.trim()) return;
+  const handleOpenNewTopic = () => {
+    if (!currentUser) {
+      navigate("/auth");
+      return;
+    }
+    setIsNewTopicOpen(true);
+  };
 
-    const newThread: Thread = {
-      id: Math.max(...threads.map((t) => t.id)) + 1,
-      title: newTopicTitle,
-      author: "Sina",
-      authorAvatar: "SI",
-      replies: 0,
-      views: 1,
-      lastActivity: "Just nüüd",
-      lastActivityMinutes: 0,
-      isPinned: false,
-      isHot: false,
-    };
+  const handleCreateTopic = () => {
+    if (!newTopicTitle.trim() || !currentUser) return;
+
+    const newPost = addPost(newTopicTitle, newTopicContent, currentUser);
+    const newThread = postToThread(newPost);
 
     setThreads([newThread, ...threads]);
     setNewTopicTitle("");
@@ -271,7 +320,7 @@ export function CategoryView() {
             </div>
           </div>
           <button
-            onClick={() => setIsNewTopicOpen(true)}
+            onClick={handleOpenNewTopic}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
           >
             <Plus className="w-5 h-5" />
@@ -295,14 +344,14 @@ export function CategoryView() {
               Kõik teemad
             </button>
             <button
-              onClick={() => handleFilterChange("pinned")}
+              onClick={() => handleFilterChange("myPosts")}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                filterTab === "pinned"
+                filterTab === "myPosts"
                   ? "bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-blue-400"
                   : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
               }`}
             >
-              Kinnitatud
+              Minu postitused
             </button>
             <button
               onClick={() => handleFilterChange("popular")}
