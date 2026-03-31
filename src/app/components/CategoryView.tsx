@@ -324,29 +324,30 @@ export function CategoryView() {
 
   const handleLike = (e: React.MouseEvent, threadId: number) => {
     e.preventDefault();
+    e.stopPropagation();
     if (!currentUser) { navigate("/auth"); return; }
-    const updated = toggleLike(threadId, currentUser);
-    // Re-merge localStorage posts with initial threads
-    const userThreads = updated.map(postToThread);
-    const initialIds = new Set(initialThreads.map((t) => t.id));
-    const dedupedUserThreads = userThreads.filter((t) => !initialIds.has(t.id));
-    setThreads([...dedupedUserThreads, ...initialThreads.map((t) => {
-      const match = updated.find((p) => p.id === t.id);
-      return match ? { ...t, likes: match.likes, flaggedBy: match.flaggedBy } : t;
-    })]);
+    // Persist to localStorage for user-created posts
+    toggleLike(threadId, currentUser);
+    // Toggle directly in local state so it works for both mock and user-created threads
+    setThreads(prev => prev.map(t => {
+      if (t.id !== threadId) return t;
+      const liked = t.likes.includes(currentUser);
+      return { ...t, likes: liked ? t.likes.filter(u => u !== currentUser) : [...t.likes, currentUser] };
+    }));
   };
 
   const handleFlag = (e: React.MouseEvent, threadId: number) => {
     e.preventDefault();
+    e.stopPropagation();
     if (!currentUser) { navigate("/auth"); return; }
-    const updated = toggleFlag(threadId, currentUser);
-    const userThreads = updated.map(postToThread);
-    const initialIds = new Set(initialThreads.map((t) => t.id));
-    const dedupedUserThreads = userThreads.filter((t) => !initialIds.has(t.id));
-    setThreads([...dedupedUserThreads, ...initialThreads.map((t) => {
-      const match = updated.find((p) => p.id === t.id);
-      return match ? { ...t, likes: match.likes, flaggedBy: match.flaggedBy } : t;
-    })]);
+    // Persist to localStorage for user-created posts
+    toggleFlag(threadId, currentUser);
+    // Toggle directly in local state so it works for both mock and user-created threads
+    setThreads(prev => prev.map(t => {
+      if (t.id !== threadId) return t;
+      const flagged = t.flaggedBy.includes(currentUser);
+      return { ...t, flaggedBy: flagged ? t.flaggedBy.filter(u => u !== currentUser) : [...t.flaggedBy, currentUser] };
+    }));
   };
 
   return (
