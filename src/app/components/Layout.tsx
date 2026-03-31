@@ -1,11 +1,38 @@
-import { Outlet, Link } from "react-router";
-import { Search, Menu, User, Bell, MessageSquare, Moon, Sun } from "lucide-react";
-import { useState } from "react";
+import { Outlet, Link, useOutletContext } from "react-router";
+import { Search, Menu, User, Bell, MessageSquare, Moon, Sun, LogOut } from "lucide-react";
+import { useState, useEffect } from "react";
 import { useTheme } from "next-themes";
+import { getCurrentUser, logout as doLogout } from "../storage";
+
+type LayoutContext = {
+  searchQuery: string;
+};
+
+export function useLayoutContext() {
+  return useOutletContext<LayoutContext>();
+}
 
 export function Layout() {
   const [searchQuery, setSearchQuery] = useState("");
   const { theme, setTheme } = useTheme();
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCurrentUser(getCurrentUser());
+  }, []);
+
+  // Re-check on every navigation (simple approach)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentUser(getCurrentUser());
+    }, 500);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleLogout = () => {
+    doLogout();
+    setCurrentUser(null);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -47,13 +74,39 @@ export function Layout() {
               <button className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
                 <Bell className="w-5 h-5" />
               </button>
-              <button className="flex items-center gap-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
-                <User className="w-5 h-5" />
-                <span className="hidden sm:inline">Logi sisse</span>
-              </button>
-              <button className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors hidden sm:block">
-                Registreeru
-              </button>
+
+              {currentUser ? (
+                <>
+                  <div className="flex items-center gap-2 px-4 py-2 text-gray-700 dark:text-gray-300">
+                    <User className="w-5 h-5" />
+                    <span className="hidden sm:inline font-medium">{currentUser}</span>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center gap-2 px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  >
+                    <LogOut className="w-5 h-5" />
+                    <span className="hidden sm:inline">Logi välja</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    to="/auth"
+                    className="flex items-center gap-2 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  >
+                    <User className="w-5 h-5" />
+                    <span className="hidden sm:inline">Logi sisse</span>
+                  </Link>
+                  <Link
+                    to="/auth"
+                    className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors hidden sm:block"
+                  >
+                    Registreeru
+                  </Link>
+                </>
+              )}
+
               <button className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white md:hidden">
                 <Menu className="w-6 h-6" />
               </button>
@@ -64,7 +117,7 @@ export function Layout() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Outlet />
+        <Outlet context={{ searchQuery } satisfies LayoutContext} />
       </main>
 
       {/* Footer */}
@@ -74,33 +127,33 @@ export function Layout() {
             <div>
               <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Foorum</h3>
               <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                <li><a href="#" className="hover:text-blue-600 dark:hover:text-blue-400">Reeglid</a></li>
-                <li><a href="#" className="hover:text-blue-600 dark:hover:text-blue-400">KKK</a></li>
-                <li><a href="#" className="hover:text-blue-600 dark:hover:text-blue-400">Kontakt</a></li>
+                <li><Link to="/page/reeglid" className="hover:text-blue-600 dark:hover:text-blue-400">Reeglid</Link></li>
+                <li><Link to="/page/kkk" className="hover:text-blue-600 dark:hover:text-blue-400">KKK</Link></li>
+                <li><Link to="/page/kontakt" className="hover:text-blue-600 dark:hover:text-blue-400">Kontakt</Link></li>
               </ul>
             </div>
             <div>
               <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Hinnavaatlus</h3>
               <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                <li><a href="#" className="hover:text-blue-600 dark:hover:text-blue-400">Pealeht</a></li>
-                <li><a href="#" className="hover:text-blue-600 dark:hover:text-blue-400">Poed</a></li>
-                <li><a href="#" className="hover:text-blue-600 dark:hover:text-blue-400">Hinnavõrdlus</a></li>
+                <li><Link to="/page/pealeht" className="hover:text-blue-600 dark:hover:text-blue-400">Pealeht</Link></li>
+                <li><Link to="/page/poed" className="hover:text-blue-600 dark:hover:text-blue-400">Poed</Link></li>
+                <li><Link to="/page/hinnavordlus" className="hover:text-blue-600 dark:hover:text-blue-400">Hinnavõrdlus</Link></li>
               </ul>
             </div>
             <div>
               <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Abi</h3>
               <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                <li><a href="#" className="hover:text-blue-600 dark:hover:text-blue-400">Kasutustingimused</a></li>
-                <li><a href="#" className="hover:text-blue-600 dark:hover:text-blue-400">Privaatsus</a></li>
-                <li><a href="#" className="hover:text-blue-600 dark:hover:text-blue-400">Küpsised</a></li>
+                <li><Link to="/page/kasutustingimused" className="hover:text-blue-600 dark:hover:text-blue-400">Kasutustingimused</Link></li>
+                <li><Link to="/page/privaatsus" className="hover:text-blue-600 dark:hover:text-blue-400">Privaatsus</Link></li>
+                <li><Link to="/page/kupsised" className="hover:text-blue-600 dark:hover:text-blue-400">Küpsised</Link></li>
               </ul>
             </div>
             <div>
               <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Järgi meid</h3>
               <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                <li><a href="#" className="hover:text-blue-600 dark:hover:text-blue-400">Facebook</a></li>
-                <li><a href="#" className="hover:text-blue-600 dark:hover:text-blue-400">Twitter</a></li>
-                <li><a href="#" className="hover:text-blue-600 dark:hover:text-blue-400">Instagram</a></li>
+                <li><a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 dark:hover:text-blue-400">Facebook</a></li>
+                <li><a href="https://twitter.com" target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 dark:hover:text-blue-400">Twitter</a></li>
+                <li><a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 dark:hover:text-blue-400">Instagram</a></li>
               </ul>
             </div>
           </div>
