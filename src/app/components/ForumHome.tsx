@@ -1,5 +1,8 @@
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { MessageSquare, Users, Eye, Pin, TrendingUp } from "lucide-react";
+import { useMemo } from "react";
+import { getCurrentUser } from "../storage";
+import { useLayoutContext } from "./Layout";
 
 const categories = [
   {
@@ -98,6 +101,34 @@ const popularThreads = [
 ];
 
 export function ForumHome() {
+  const navigate = useNavigate();
+  const { searchQuery } = useLayoutContext();
+
+  const filteredCategories = useMemo(() => {
+    if (!searchQuery.trim()) return categories;
+    const q = searchQuery.toLowerCase();
+    return categories.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.description.toLowerCase().includes(q)
+    );
+  }, [searchQuery]);
+
+  const filteredThreads = useMemo(() => {
+    if (!searchQuery.trim()) return popularThreads;
+    const q = searchQuery.toLowerCase();
+    return popularThreads.filter((t) => t.title.toLowerCase().includes(q));
+  }, [searchQuery]);
+
+  const handleNewTopic = () => {
+    const user = getCurrentUser();
+    if (!user) {
+      navigate("/auth");
+    } else {
+      navigate("/category/arvutid");
+    }
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
       {/* Main Content */}
@@ -108,7 +139,10 @@ export function ForumHome() {
           <p className="text-blue-100 dark:text-blue-200 mb-4">
             Jaga kogemusi, küsi nõu ja aita teisi teha nutikaid ostuotsuseid
           </p>
-          <button className="px-6 py-2 bg-white text-blue-600 rounded-lg hover:bg-blue-50 dark:hover:bg-gray-100 transition-colors">
+          <button
+            onClick={handleNewTopic}
+            className="px-6 py-2 bg-white text-blue-600 rounded-lg hover:bg-blue-50 dark:hover:bg-gray-100 transition-colors"
+          >
             Alusta uut teemat
           </button>
         </div>
@@ -117,7 +151,12 @@ export function ForumHome() {
         <div className="space-y-4">
           <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">Kategooriad</h2>
           <div className="space-y-3">
-            {categories.map((category) => (
+            {filteredCategories.length === 0 && (
+              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
+                <p className="text-gray-500 dark:text-gray-400">Kategooriaid ei leitud</p>
+              </div>
+            )}
+            {filteredCategories.map((category) => (
               <Link
                 key={category.id}
                 to={`/category/${category.id}`}
@@ -186,7 +225,10 @@ export function ForumHome() {
             <h3 className="font-semibold text-lg text-gray-900 dark:text-white">Populaarsed teemad</h3>
           </div>
           <div className="space-y-4">
-            {popularThreads.map((thread) => (
+            {filteredThreads.length === 0 && (
+              <p className="text-sm text-gray-500 dark:text-gray-400">Teemad puuduvad</p>
+            )}
+            {filteredThreads.map((thread) => (
               <Link
                 key={thread.id}
                 to={`/thread/${thread.id}`}
