@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router";
-import { ArrowLeft, Plus, Pin, MessageSquare, Eye, Clock, ThumbsUp, Flag } from "lucide-react";
+import { ArrowLeft, Plus, Pin, MessageSquare, Eye, Clock, ThumbsUp, Flag, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./ui/dialog";
-import { getCurrentUser, getPosts, addPost, toggleLike, toggleFlag, type Post } from "../storage";
+import { getCurrentUser, getPosts, addPost, toggleLike, toggleFlag, deletePost, type Post } from "../storage";
 import { useLayoutContext } from "./Layout";
 
 type Thread = {
@@ -350,6 +350,14 @@ export function CategoryView() {
     }));
   };
 
+  const handleDelete = (e: React.MouseEvent, threadId: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!currentUser) return;
+    deletePost(threadId, currentUser);
+    setThreads(prev => prev.filter(t => t.id !== threadId));
+  };
+
   return (
     <div className="max-w-5xl mx-auto">
       {/* Breadcrumb */}
@@ -521,6 +529,15 @@ export function CategoryView() {
                         <Flag className="w-4 h-4" />
                         <span>{thread.flaggedBy.length}</span>
                       </button>
+                      {currentUser && thread.author === currentUser && (
+                        <button
+                          onClick={(e) => handleDelete(e, thread.id)}
+                          className="flex items-center gap-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          <span>Kustuta</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -565,16 +582,16 @@ export function CategoryView() {
 
       {/* New Topic Dialog */}
       <Dialog open={isNewTopicOpen} onOpenChange={setIsNewTopicOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg bg-white dark:bg-[#1F2937] border border-[#E5E7EB] dark:border-[#374151]">
           <DialogHeader>
-            <DialogTitle>Uus teema</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-[#111827] dark:text-white">Uus teema</DialogTitle>
+            <DialogDescription className="text-[#6B7280] dark:text-[#9CA3AF]">
               Loo uus teema kategoorias "{category.name}"
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-[#111827] dark:text-[#D1D5DB] mb-2">
                 Pealkiri
               </label>
               <input
@@ -582,11 +599,11 @@ export function CategoryView() {
                 value={newTopicTitle}
                 onChange={(e) => setNewTopicTitle(e.target.value)}
                 placeholder="Sisesta teema pealkiri..."
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="w-full px-4 py-2.5 border border-[#E5E7EB] dark:border-[#374151] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-[#93C5FD] dark:focus:border-[#2563EB] bg-[#F9FAFB] dark:bg-[#374151] text-[#111827] dark:text-white placeholder:text-[#9CA3AF] transition-colors"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-[#111827] dark:text-[#D1D5DB] mb-2">
                 Sisu
               </label>
               <textarea
@@ -594,21 +611,21 @@ export function CategoryView() {
                 onChange={(e) => setNewTopicContent(e.target.value)}
                 placeholder="Kirjuta oma teema sisu..."
                 rows={5}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
+                className="w-full px-4 py-2.5 border border-[#E5E7EB] dark:border-[#374151] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-[#93C5FD] dark:focus:border-[#2563EB] bg-[#F9FAFB] dark:bg-[#374151] text-[#111827] dark:text-white placeholder:text-[#9CA3AF] resize-none transition-colors"
               />
             </div>
           </div>
           <DialogFooter>
             <button
               onClick={() => setIsNewTopicOpen(false)}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-gray-900 dark:text-white"
+              className="px-5 py-2.5 rounded-lg text-sm font-medium text-[#6B7280] dark:text-[#D1D5DB] bg-transparent hover:bg-[#F9FAFB] dark:hover:bg-[#374151] hover:text-[#111827] dark:hover:text-white transition-all duration-200"
             >
               Tühista
             </button>
             <button
               onClick={handleCreateTopic}
               disabled={!newTopicTitle.trim()}
-              className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-5 py-2.5 bg-[#2563EB] dark:bg-[#3B82F6] text-white rounded-lg text-sm font-medium hover:bg-[#1D4ED8] dark:hover:bg-[#2563EB] active:bg-[#1D4ED8] active:scale-95 shadow-md hover:shadow-lg transition-all duration-200 disabled:bg-[#374151] disabled:text-[#6B7280] disabled:shadow-none disabled:cursor-not-allowed"
             >
               Loo teema
             </button>

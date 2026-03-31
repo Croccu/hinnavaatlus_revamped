@@ -107,3 +107,12 @@ export const toggleFlag = (postId: number, username: string): Post[] => {
   savePosts(posts);
   return posts;
 };
+
+export const deletePost = (postId: number, username: string): Post[] => {
+  const posts = getPosts();
+  const post = posts.find((p) => p.id === postId);
+  if (!post || post.author !== username) return posts;
+  const updated = posts.filter((p) => p.id !== postId);
+  savePosts(updated);
+  return updated;
+};
